@@ -1,0 +1,4 @@
+TalkTalk.exe:TalkTalk.o
+                g++ -o TalkTalk.exe -lws2_32 -lwinmm -lgdi32 -luser32 -lkernel32 -lcomctl32 TalkTalk.o
+TalkTalk.o:client1.cpp
+                g++ -o TalkTalk.o client1.cpp 
