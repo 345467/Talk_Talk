@@ -57,6 +57,7 @@ interface Window:impl WindowPart{
 	vector<Label *> labels;
 	vector<TextField *> textFields;
  	vector<TextFieldArea *> textFieldAreas;
+	bool closed=true;
 	
 	static LRESULT CALLBACK WndProc(HWND hWnd, UINT message,
                          WPARAM wParam, LPARAM lParam) {
@@ -137,15 +138,20 @@ public:
     	textFieldAreas.push_back(b);
 	}
 	void close(){
+	if(closed) return;
     	SendMessage(hwnd,WM_DESTROY,NULL,NULL);
 		HINSTANCE hInstance=GetModuleHandle(NULL);
     	UnregisterClass(title.c_str(),hInstance);
 	}
 	Window(string windowTitle) {
     	initWindow(windowTitle);
+	closed=false;
     	mp->OnInit();
     	windowLoop();
     	close();
+	}
+	~Window(){
+	close();
 	}
 }
 
