@@ -48,112 +48,7 @@ interface MessageProcesser:impl Object{
 		virtual void OnCommand() = 0;
 		virtual void OnDestory() = 0;
 		virtual void OnPaint() = 0;
-}
-
-template<MessageProcesser *mp>
-interface Window:impl WindowPart{
-	string title;
-	vector<Button *> buttons;
-	vector<Label *> labels;
-	vector<TextField *> textFields;
- 	vector<TextFieldArea *> textFieldAreas;
-	bool closed=true;
-	
-	static LRESULT CALLBACK WndProc(HWND hWnd, UINT message,
-                         WPARAM wParam, LPARAM lParam) {
-    	HDC hdc=GetDC(hWnd);
-    	for(Label *l:labels)
-        	l->draw(hdc);
-    	ReleaseDC(hWnd,hdc);
-    	switch(message) {
-        	case UWM_NULL:
-            	break;
-        	case WM_COMMAND:
-				mp->OnCommand();
-            	for(auto &it:buttons)
-                if(it->code==LOWORD(wParam))
-					it->proc();
-            break;
-			case WM_PAINT:
-				mp->OnPaint();
-        	case WM_DESTROY: {
-				mp->OnDestory();
-            	running=false;
-            	PostQuitMessage(0);
-            	break;
-        	}
-        	default:
-           		return DefWindowProc(hWnd, message, wParam, lParam);
-            	break;
-    	}
-    	return 0;
-	}
-	void initWindow(string ititle) {
-    	title=ititle;
-    	HINSTANCE hInstance=GetModuleHandle(NULL);
-    	WNDCLASSEX wcex;
-    	wcex.cbSize = sizeof(WNDCLASSEX);
-    	wcex.style          = CS_HREDRAW | CS_VREDRAW;
-    	wcex.lpfnWndProc    = WndProc;
-    	wcex.cbClsExtra     = 0;
-    	wcex.cbWndExtra     = 0;
-    	wcex.hInstance      = hInstance;
-    	wcex.hIcon          = LoadIcon(hInstance, NULL);
-    	wcex.hCursor        = LoadCursor(NULL, NULL);
-    	wcex.hbrBackground  = (HBRUSH)(COLOR_WINDOW+1);
-    	wcex.lpszMenuName   = NULL;
-    	wcex.lpszClassName  = title.c_str();
-    	wcex.hIconSm        = LoadIcon(hInstance, NULL);
-    	if(!RegisterClassEx(&wcex)) logger.fatal("窗口类注册失败!");
-    	hwnd = CreateWindow(title.c_str(),title.c_str(),
-                        	WS_OVERLAPPEDWINDOW,0,0,600,400,NULL,NULL,
-                        	hInstance,NULL);
-    
-    	for(Button *b:buttons) b->init(hwnd);
-    	for(TextField *b:textFields) b->init(hwnd);
-    	for(TextFieldArea *b:textFieldAreas) b->init(hwnd);
-	}
-
-	int windowLoop() {
-    	ShowWindow(hwnd, SW_SHOWNORMAL);
-    	UpdateWindow(hwnd);
-    	MSG msg;
-    	while (GetMessage(&msg, NULL, 0, 0)) {
-        	TranslateMessage(&msg);
-        	DispatchMessage(&msg);
-    	}
-    	return (int)msg.wParam;
-	}
-public:
-	void addButton(Button *b) {
-    	buttons.push_back(b);
-	}
-	void addLabel(Label *b) {
-    	labels.push_back(b);
-	}
-	void addTextField(TextField *b) {
-    	textFields.push_back(b);
-	}
-	void addTextFieldArea(TextFieldArea *b) {
-    	textFieldAreas.push_back(b);
-	}
-	void close(){
-	if(closed) return;
-    	SendMessage(hwnd,WM_DESTROY,NULL,NULL);
-		HINSTANCE hInstance=GetModuleHandle(NULL);
-    	UnregisterClass(title.c_str(),hInstance);
-	}
-	Window(string windowTitle) {
-    	initWindow(windowTitle);
-	closed=false;
-    	mp->OnInit();
-    	windowLoop();
-    	close();
-	}
-	~Window(){
-	close();
-	}
-}
+};
 
 interface HaveText:impl Object{
 	protected:
@@ -176,9 +71,7 @@ class Button:impl WindowPart,impl HaveText{
         PROC proc;
         int code;
 	private:
-        friend void initWindow(string);
-        friend LRESULT CALLBACK WndProc(HWND,UINT,WPARAM,
-                                        LPARAM);
+        friend class Window;
         virtual void init(HWND hwnd) {
         	static int icode=WM_USER+1;
             if(!CreateWindow("Button", text.c_str(),
@@ -224,9 +117,7 @@ class Label : impl WindowPart,impl HaveText{
 };
 
 class TextField : impl WindowPart{
-        friend void initWindow(string);
-        friend LRESULT CALLBACK WndProc(HWND,UINT,WPARAM,
-                                        LPARAM);
+        friend class Window;
         virtual void init(HWND ihwnd) {
             if(!(hwnd=CreateWindow("edit",NULL,
                                   WS_CHILD|WS_VISIBLE|WS_BORDER,
@@ -254,9 +145,7 @@ class TextField : impl WindowPart{
 
 class TextFieldArea : impl WindowPart{
     private:
-        friend void initWindow(string);
-        friend LRESULT CALLBACK WndProc(HWND,UINT,WPARAM,
-                                        LPARAM);
+        friend class Window;
         virtual void init(HWND ihwnd) {
             if(!(hwnd=CreateWindow("edit",NULL,
                                   WS_CHILD|WS_VISIBLE|WS_BORDER|
@@ -283,107 +172,127 @@ class TextFieldArea : impl WindowPart{
 		}
 };
 
-static string title;
-HWND hwnd;
-static vector<Button*> buttons;
-static vector<Label*> labels;
-static vector<TextField *> textFields;
-static vector<TextFieldArea *> textFieldAreas;
+struct ParamWarpper{
+    WPARAM wParam;
+    void *ptr;
+};
 
-void addButton(Button *b) {
-    buttons.push_back(b);
-}
+interface Window:impl Object{
+	string title;
+	vector<Button *> buttons;
+	vector<Label *> labels;
+	vector<TextField *> textFields;
+ 	vector<TextFieldArea *> textFieldAreas;
+	bool closed=true;
+	MessageProcesser *mp;
+	HWND hwnd;
 
-void addLabel(Label *b) {
-    labels.push_back(b);
-}
-
-void addTextField(TextField *b) {
-    textFields.push_back(b);
-}
-
-void addTextFieldArea(TextFieldArea *b) {
-    textFieldAreas.push_back(b);
-}
-
-LRESULT CALLBACK WndProc(HWND hWnd, UINT message,
+	static LRESULT CALLBACK WndProc(HWND hWnd, UINT message,
                          WPARAM wParam, LPARAM lParam) {
-    HDC hdc=GetDC(hWnd);
-    for(Label *l:labels)
-        l->draw(hdc);
-    ReleaseDC(hWnd,hdc);
-    switch(message) {
-        case UWM_NULL:
-            break;
-        case WM_COMMAND:
-            for(auto &it:buttons)
+        ParamWarpper *pw=(ParamWarpper *)wParam;
+        Window *_this=(Window *)pw->ptr;
+        wParam=pw->wParam;
+    	HDC hdc=GetDC(hWnd);
+    	for(Label *l:_this->labels)
+        	l->draw(hdc);
+    	ReleaseDC(hWnd,hdc);
+    	switch(message) {
+        	case UWM_NULL:
+            	break;
+        	case WM_COMMAND:
+				_this->mp->OnCommand();
+            	for(auto &it:_this->buttons)
                 if(it->code==LOWORD(wParam))
 					it->proc();
             break;
-        case WM_DESTROY: {
-            running=false;
-            PostQuitMessage(0);
-            break;
-        }
-        default:
-            return DefWindowProc(hWnd, message, wParam, lParam);
-            break;
-    }
-    return 0;
-}
+			case WM_PAINT:
+				_this->mp->OnPaint();
+        	case WM_DESTROY: {
+				_this->mp->OnDestory();
+            	running=false;
+            	PostQuitMessage(0);
+            	break;
+        	}
+        	default:
+           		return DefWindowProc(hWnd, message, wParam, lParam);
+            	break;
+    	}
+    	return 0;
+	}
+	void initWindow(string ititle) {
+    	title=ititle;
+    	HINSTANCE hInstance=GetModuleHandle(NULL);
+    	WNDCLASSEX wcex;
+    	wcex.cbSize = sizeof(WNDCLASSEX);
+    	wcex.style          = CS_HREDRAW | CS_VREDRAW;
+    	wcex.lpfnWndProc    = WndProc;
+    	wcex.cbClsExtra     = 0;
+    	wcex.cbWndExtra     = 0;
+    	wcex.hInstance      = hInstance;
+    	wcex.hIcon          = LoadIcon(hInstance, NULL);
+    	wcex.hCursor        = LoadCursor(NULL, NULL);
+    	wcex.hbrBackground  = (HBRUSH)(COLOR_WINDOW+1);
+    	wcex.lpszMenuName   = NULL;
+    	wcex.lpszClassName  = title.c_str();
+    	wcex.hIconSm        = LoadIcon(hInstance, NULL);
+    	if(!RegisterClassEx(&wcex)) logger.fatal("窗口类注册失败!");
+    	hwnd = CreateWindow(title.c_str(),title.c_str(),
+                        	WS_OVERLAPPEDWINDOW,0,0,600,400,NULL,NULL,
+                        	hInstance,NULL);
 
-void initWindow(string ititle) {
-    title=ititle;
-    HINSTANCE hInstance=GetModuleHandle(NULL);
-    WNDCLASSEX wcex;
-    wcex.cbSize = sizeof(WNDCLASSEX);
-    wcex.style          = CS_HREDRAW | CS_VREDRAW;
-    wcex.lpfnWndProc    = WndProc;
-    wcex.cbClsExtra     = 0;
-    wcex.cbWndExtra     = 0;
-    wcex.hInstance      = hInstance;
-    wcex.hIcon          = LoadIcon(hInstance, NULL);
-    wcex.hCursor        = LoadCursor(NULL, NULL);
-    wcex.hbrBackground  = (HBRUSH)(COLOR_WINDOW+1);
-    wcex.lpszMenuName   = NULL;
-    wcex.lpszClassName  = title.c_str();
-    wcex.hIconSm        = LoadIcon(hInstance, NULL);
-    if(!RegisterClassEx(&wcex)) logger.fatal("窗口类注册失败!");
-    hwnd = CreateWindow(title.c_str(),title.c_str(),
-                        WS_OVERLAPPEDWINDOW,0,0,600,400,NULL,NULL,
-                        hInstance,NULL);
-    
-    for(Button *b:buttons) b->init(hwnd);
-    for(TextField *b:textFields) b->init(hwnd);
-    for(TextFieldArea *b:textFieldAreas) b->init(hwnd);
-}
+    	for(Button *b:buttons) b->init(hwnd);
+    	for(TextField *b:textFields) b->init(hwnd);
+    	for(TextFieldArea *b:textFieldAreas) b->init(hwnd);
+	}
 
-static int windowLoop() {
-    ShowWindow(hwnd, SW_SHOWNORMAL);
-    UpdateWindow(hwnd);
-    MSG msg;
-    while (GetMessage(&msg, NULL, 0, 0)) {
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
-    }
-    return (int)msg.wParam;
-}
-
-static void destoryWindow() {
-    HINSTANCE hInstance=GetModuleHandle(NULL);
-    UnregisterClass(title.c_str(),hInstance);
-}
-
-void close(){
-    SendMessage(hwnd,WM_DESTROY,NULL,NULL);
-	destoryWindow();
-}
-
-template<typename _Ft>
-void window(string windowTitle,_Ft afterInit) {
-    initWindow(windowTitle);
-    afterInit();
-    windowLoop();
-    destoryWindow();
-}
-
+	int windowLoop() {
+    	ShowWindow(hwnd, SW_SHOWNORMAL);
+    	UpdateWindow(hwnd);
+    	MSG msg;
+    	while (GetMessage(&msg, NULL, 0, 0)) {
+        	TranslateMessage(&msg);
+            ParamWarpper pw;
+            pw.ptr=this;
+            pw.wParam=msg.wParam;
+        	msg.wParam=(WPARAM)&pw;
+        	DispatchMessage(&msg);
+    	}
+    	return (int)msg.wParam;
+	}
+public:
+	void addButton(Button *b) {
+    	buttons.push_back(b);
+	}
+	void addLabel(Label *b) {
+    	labels.push_back(b);
+	}
+	void addTextField(TextField *b) {
+    	textFields.push_back(b);
+	}
+	void addTextFieldArea(TextFieldArea *b) {
+    	textFieldAreas.push_back(b);
+	}
+	void close(){
+	if(closed) return;
+    	SendMessage(hwnd,WM_DESTROY,NULL,NULL);
+		HINSTANCE hInstance=GetModuleHandle(NULL);
+    	UnregisterClass(title.c_str(),hInstance);
+	}
+	Window(string windowTitle,MessageProcesser *imp) {
+	    mp=imp;
+    	initWindow(windowTitle);
+	closed=false;
+    	mp->OnInit();
+    	windowLoop();
+    	close();
+	}
+	~Window(){
+        close();
+	}
+	void update(){
+	    SendMessage(hwnd,UWM_NULL,0,0);
+	}
+	virtual string to_string(){
+	    return "Window("+std::to_string(int(this))+")";
+	}
+};
