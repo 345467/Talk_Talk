@@ -16,29 +16,47 @@ using namespace Web;
 static void onSend();
 void do_restartable_init();
 
-static Label ipl("");
-static Label msgl("");
 static TextField ip;
 static TextFieldArea msg;
 static TextFieldArea recvs;
+
+class MP:public MessageProcesser{
+	public:
+		Cfg common_cfg;
+		virtual void OnInit(){
+			ip.setText(common_cfg.get("lang.zh_cn.textfield.ip"));
+			msg.setText(common_cfg.get("lang.zh_cn.textarea.msg"));
+			recvs.setText(common_cfg.get("lang.zh_cn.textarea.recvs"));
+		}
+		virtual void OnCommand(){}
+		virtual void OnDestory(){
+			running=false;
+		}
+		virtual void OnPaint(){}
+}
+static const MP *mp=new MP;
+static Window<mp> *win;
+static Label ipl("");
+static Label msgl("");
 static Button bsend("",onSend);
 static Button brestart("",[]()->void {
     running=false;
-    Socket so("127.0.0.1",5010);
-    so.send("ÍË³ö");
+    Socket so("127.0.0.1",31126);
+    so.send("é€€å‡º");
     so.close();
-    close();
+    delete win;
+    win=new Window();
     void cleanup();
     cleanup();
     do_restartable_init();
 });
 
 static void onSend() {
-    logger.info("Á¬½ÓµØÖ·:"+ip.getText());
-    logger.info("·¢ËÍÏûÏ¢:"+msg.getText());
+    logger.info("è¿æ¥åœ°å€:"+ip.getText());
+    logger.info("å‘é€æ¶ˆæ¯:"+msg.getText());
     Socket out(ip.getText().c_str(),31126);
     if(*(out.getState())==error) {
-        logger.error("·¢ËÍÊ§°Ü!");
+        logger.error("å‘é€å¤±è´¥!");
         return;
     }
     out.send(msg.getText());
@@ -48,38 +66,37 @@ static void onSend() {
 static int listener_thread(LPVOID lpParamter) {
     ServerSocket server(31126);
     Logger inner("[LISTENER_THREAD]");
-    inner.info("¿ªÊ¼¼àÌı...");
+    inner.info("å¼€å§‹ç›‘å¬...");
     while(running) {
         Socket so=server.accept();
-        inner.info("µÃµ½Á¬½Ó");
+        inner.info("å¾—åˆ°è¿æ¥");
         string str=so.recv();
-        inner.info("Êı¾İ:"+str);
+        inner.info("æ•°æ®:"+str);
         recvs.setText(recvs.getText()+"\n"+to_string(
                           so.getAddr()->sin_port)
                       +":"+str);
         SendMessage(hwnd,UWM_NULL,0,0);
     }
-    inner.info("ÍË³ö!\n");
+    inner.info("é€€å‡º!\n");
     server.close();
     return 0;
 }
 
 void do_only_once_init(){
-	Log::init("log.log");
-    Log::setLevel(INFO);
-    logger.info("³õÊ¼»¯ÍøÂç");
-    use_net();
-
     //cout<<HttpRequest("http://changxiang.nat123.net",80,"/talktalk.html?from=a&to=b&msg=some%20text");
-    logger.info("³õÊ¼»¯¼àÌıÏß³Ì");
+    logger.info("åˆå§‹åŒ–ç›‘å¬çº¿ç¨‹");
     Thread(listener_thread).start();
 }
 
 void do_restartable_init(){
-	logger.info("¶ÁÈ¡ÉèÖÃÎÄ¼ş:common.cfg");
+	Log::init("log.log");
+    Log::setLevel(INFO);
+    logger.info("åˆå§‹åŒ–ç½‘ç»œ");
+    use_net();
+	logger.info("è¯»å–è®¾ç½®æ–‡ä»¶:common.cfg");
     Cfg common_cfg("common.cfg",default_common_cfg);
     
-    logger.info("ÉèÖÃUI²¿¼ş³ß´ç");
+    logger.info("è®¾ç½®UIéƒ¨ä»¶å°ºå¯¸");
     Log::setLevel(levelFromString(common_cfg.get("log.level")));
     ipl.setBounds(sti(common_cfg.get("gui.label.ip.x")),
 				 sti(common_cfg.get("gui.label.ip.y")));
@@ -108,30 +125,27 @@ void do_restartable_init(){
 	
 	logger.info(bsend.to_string());
 	
-	logger.info("¼ÓÔØÓïÑÔ");
+	logger.info("åŠ è½½è¯­è¨€");
 	ipl.setText(common_cfg.get("lang.zh_cn.label.ip"));
 	msgl.setText(common_cfg.get("lang.zh_cn.label.msg"));
 	bsend.setText(common_cfg.get("lang.zh_cn.button.send"));
 	brestart.setText(common_cfg.get("lang.zh_cn.button.restart"));
 	
-	logger.info("×¢²áUI²¿¼ş");
-    addLabel(&ipl);
-    addLabel(&msgl);
-    addButton(&bsend);
-    addButton(&brestart);
-    addTextField(&ip);
-    addTextFieldArea(&msg);
-    addTextFieldArea(&recvs);
-    window("TalkTalk0.0.1 - for C++",[&common_cfg]()->void {
-        ip.setText(common_cfg.get("lang.zh_cn.textfield.ip"));
-		msg.setText(common_cfg.get("lang.zh_cn.textarea.msg"));
-		recvs.setText(common_cfg.get("lang.zh_cn.textarea.recvs"));
-    });
+	logger.info("æ³¨å†ŒUIéƒ¨ä»¶");
+	mp->common_cfg=common_cfg;
+	win=new Window("TalkTalk0.0.1 - for C++");
+    win->addLabel(&ipl);
+    win->addLabel(&msgl);
+    win->addButton(&bsend);
+    win->addButton(&brestart);
+    win->addTextField(&ip);
+    win->addTextFieldArea(&msg);
+    win->addTextFieldArea(&recvs);
 }
 
 void cleanup(){
 	unuse_net();
-    logger.info("ÍË³ö!\n");
+    logger.info("é€€å‡º!\n");
     Log::exit();
 }
 
@@ -146,10 +160,10 @@ int main(int argc, char* argv[]) {
 	try{
 		appMain();
 	}catch(exception &e){
-		logger.fatal("·¢ÏÖÎ´²¶×½µÄÒì³£!");
-		logger.fatal(string("ÏêÏ¸ĞÅÏ¢:")+e.what());
+		logger.fatal("å‘ç°æœªæ•æ‰çš„å¼‚å¸¸!");
+		logger.fatal(string("è¯¦ç»†ä¿¡æ¯:")+e.what());
 	}catch(...){
-		logger.fatal("·¢ÏÖÎ´ÖªÒì³£!");
+		logger.fatal("å‘ç°æœªçŸ¥å¼‚å¸¸!");
 	}
     return 0;
 }
